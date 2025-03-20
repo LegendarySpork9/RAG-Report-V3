@@ -103,7 +103,16 @@ namespace RAG_Report_V3.Stages
                 SqlCommand command;
                 SqlDataReader dataReader;
 
-                string sqlQuery = @"";
+                string sqlQuery = @"with CountCTE as (
+	select count(*) as ExclusionCount from Table with (nolock)
+	where InstanceID = @InstanceID
+)
+
+select cast(ExclusionCount as varchar), null from CountCTE with (nolock)
+union all
+select Name, ExcludeTillDate from Table with (nolock)
+where InstanceID = @InstanceID
+and (select ExclusionCount from CountCTE with (nolock)) > 0";
                 bool firstRow = true;
                 List<string> name = new();
                 List<DateOnly> date = new();
@@ -167,7 +176,19 @@ namespace RAG_Report_V3.Stages
                 SqlConnection connection;
                 SqlCommand command;
 
-                string sqlQuery = @"";
+                string sqlQuery = @"if exists (
+	select InstanceID from Table with (nolock) where InstanceID = @InstanceID and Name = @Name
+)
+begin
+	update Table set ExcludeTillDate = @Date, ExclusionReason = @Reason, Comment = @Comment
+    where InstanceID = @InstanceID
+    and Name = @Name
+end
+else
+begin
+    insert into Table(InstanceID, Type, Name, ExcludeTillDate, ExclusionReason, Comment)
+    values (@InstanceID, @Type, @Name, @Date, @Reason, @Comment)
+end";
                 int rowsAffected = 0;
 
                 connection = new SqlConnection(App_Settings_Model.OutputConnectionString);

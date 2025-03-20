@@ -2,3 +2,9 @@
 **[Bb]in/
 ***[Dd]ebug/
 ***[Rr]elease/
+
+# VS
+.vs/
+
+# OBJ
+**[Oo]bj/

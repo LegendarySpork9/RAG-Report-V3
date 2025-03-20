@@ -8,7 +8,7 @@ namespace RAG_Report_V3.Converters
         static readonly ILog _logger = LogManager.GetLogger("Log");
 
         // Returns the status number of the RAG Status.
-        public void GetRAGStatus(bool isExcluded, int? index, Instance_Model instance, string? integration)
+        public void GetRAGStatus(bool isExcluded, int? index, Instance_Model instance, string? integration, RAGNumbers rag = null)
         {
             Instance_Information_Model instanceInformation = new();
             Results_Model result = new();
@@ -24,6 +24,12 @@ namespace RAG_Report_V3.Converters
                 instanceInformation.RAGStatusID = 5;
                 instance.InstanceInformation.Add(instanceInformation);
                 _logger.Debug($"{instance.SubDomain} - {integration} Rag Status: Dark Violet");
+                
+                if (rag != null)
+                {
+                    rag.DarkViolet++;
+                }
+
                 return;
             }
 
@@ -31,6 +37,12 @@ namespace RAG_Report_V3.Converters
             {
                 instanceInformation.RAGStatusID = 3;
                 _logger.Debug($"{instance.SubDomain} - Rag Status: Yellow");
+
+                if (rag != null)
+                {
+                    rag.Yellow++;
+                }
+
                 return;
             }
 
@@ -38,6 +50,12 @@ namespace RAG_Report_V3.Converters
             {
                 instanceInformation.RAGStatusID = 1;
                 _logger.Debug($"{instance.SubDomain} - Rag Status: Dark Red");
+
+                if (rag != null)
+                {
+                    rag.DarkRed++;
+                }
+
                 return;
             }
 
@@ -45,11 +63,23 @@ namespace RAG_Report_V3.Converters
             {
                 instanceInformation.RAGStatusID = 2;
                 _logger.Debug($"{instance.SubDomain} - Rag Status: Red");
+
+                if (rag != null)
+                {
+                    rag.Red++;
+                }
+
                 return;
             }
 
             instanceInformation.RAGStatusID = 4;
             _logger.Debug($"{instance.SubDomain} - Rag Status: Green");
+
+            if (rag != null)
+            {
+                rag.Green++;
+            }
+
             return;
         }
     }

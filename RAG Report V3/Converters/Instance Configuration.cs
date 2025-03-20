@@ -1,5 +1,6 @@
 ﻿using log4net;
 using RAG_Report_V3.Models;
+using RAG_Report_V3.Stages;
 using System.Data.SqlClient;
 
 namespace RAG_Report_V3.Converters
@@ -27,6 +28,15 @@ namespace RAG_Report_V3.Converters
         // Converts the integration name to the integration type.
         public string GetIntegrationType(string name, Output_Integrations_Model integrations)
         {
+            Output_Data _outputData = new();
+            TicketHandler _ticketHandler = new();
+
+            if (!integrations.Name.Contains(name))
+            {
+                _outputData.CreateIntRecord(name, integrations);
+                _ticketHandler.RaiseNewFeedTicket(name);
+            }
+
             int index = integrations.Name.IndexOf(name);
             return integrations.Type[index];
         }

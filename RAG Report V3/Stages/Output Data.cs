@@ -11,7 +11,7 @@ namespace RAG_Report_V3.Stages
         static readonly ILog _sqlLogger = LogManager.GetLogger("SQLLog");
 
         // Controls the output method.
-        public string OutputResult(Instance_Model instance, Output_Integrations_Model integrations, Output_Property_Feed_Model propertyFeeds)
+        public string OutputResult(Instance_Model instance, Output_Integrations_Model integrations, Output_Property_Feed_Model propertyFeeds, RAGNumbers rag)
         {
             Output _output = new();
             Instance_Data _instanceData = new();
@@ -26,7 +26,18 @@ namespace RAG_Report_V3.Stages
                 SqlConnection connection;
                 SqlCommand command;
 
-                string sqlQuery = @"";
+                string sqlQuery = @"if exists (
+	select InstanceID from Table with (nolock) where InstanceID = @InstanceID
+)
+begin
+	update Table set [URL] = @URL, [Status] = @Status, ActiveTriggers = @AT
+	where InstanceID = @InstanceID
+end
+else
+begin
+	insert into Table (InstanceID, URL, Status, ActiveTriggers)
+	values (@InstanceID, @URL, @Status, @AT)
+end";
 
                 connection = new SqlConnection(App_Settings_Model.OutputConnectionString);
                 connection.Open();
@@ -64,14 +75,29 @@ namespace RAG_Report_V3.Stages
                             {
                                 _logger.Warn($"{instance.SubDomain} - Invalid RAG Status Detected.");
 
-                                _ragStatus.GetRAGStatus(false, x, instance, null);
+                                _ragStatus.GetRAGStatus(false, x, instance, null, rag);
 
                                 _logger.Debug($"{instance.SubDomain} - Invalid RAG Status Fixed.");
                             }
 
                             _logger.Debug($"{instance.SubDomain} - Outputting Instance Information Model for: {instance.Integrations.Name[x]}");
 
-                            sqlQuery = @"";
+                            sqlQuery = @"if exists (
+	select InstanceID from Table with (nolock) where InstanceID = @InstanceID and [Date] = @Date and IntegrationID = @IntegrationID
+)
+begin
+	update Table set LastIntegrationDate = @IntDate, RAGStatusID = @StatusID
+    output inserted.InstanceInfoID
+	where InstanceID = @InstanceID
+	and IntegrationID = @IntegrationID
+	and [Date] = @Date
+end
+else
+begin
+	insert into Table([Date], InstanceID, IntegrationID, PropertyFeedID, LastIntegrationDate, LastFeedReceived, RAGStatusID, SetUpDate)
+    output inserted.InstanceInfoID
+	values (@Date, @InstanceID, @IntegrationID, null, @IntDate, null, @StatusID, @SetUpDate)
+end";
 
                             int integrationID = _output.GetIntID(instance.Integrations.Name[x], integrations);
                             setUpdate = _output.GetIntSetUpDate(integrationID, instance.Integrations.Name.IndexOf(instance.Integrations.Name[x]), instance);
@@ -96,7 +122,19 @@ namespace RAG_Report_V3.Stages
 
                             _logger.Debug($"{instance.SubDomain} - Outputting Instance Data Model for: {instance.Integrations.Name[x]}");
 
-                            sqlQuery = @"";
+                            sqlQuery = @"if exists (
+	select InstanceDataID from Table with (nolock) where InstanceInfoID = @InstanceInfoID and [Endpoint] = @Endpoint and [Date] = @Date
+)
+begin
+	update Table set Created = @Created, Modified = @Updated
+	where InstanceInfoID = @InstanceInfoID
+	and [Endpoint] = @Endpoint
+end
+else
+begin
+	insert into Table([Date], InstanceInfoID, [Endpoint], Created, Modified)
+	values (@Date, @InstanceInfoID, @Endpoint, @Created, @Updated)
+end";
 
                             if (infoId != null)
                             {
@@ -127,7 +165,13 @@ namespace RAG_Report_V3.Stages
                             {
                                 _logger.Debug($"{instance.SubDomain} - Outputting Results Model for: {instance.Integrations.Name[x]}");
 
-                                sqlQuery = @"";
+                                sqlQuery = @"if not exists (
+	select Table from IntegrationIssue with (nolock) where InstanceID = @InstanceID and IntegrationID = @IntegrationID and [Date] = @Date
+)
+begin
+	insert into Table(InstanceID, IntegrationID, InstanceInfoID, [Date])
+	values (@InstanceID, @IntegrationID, @InstanceInfoID, @Date)
+end";
 
                                 command = new SqlCommand(sqlQuery, connection);
                                 connection.Open();
@@ -151,7 +195,20 @@ namespace RAG_Report_V3.Stages
                         {
                             _logger.Debug($"{instance.SubDomain} - Outputting Instance Information Model for: {instance.Integrations.Name[x]}");
 
-                            sqlQuery = @"";
+                            sqlQuery = @"if exists (
+	select InstanceID from Table with (nolock) where InstanceID = @InstanceID and [Date] = @Date and IntegrationID = @IntegrationID
+)
+begin
+	update Table set LastIntegrationDate = @IntDate, RAGStatusID = @StatusID
+	where InstanceID = @InstanceID
+	and IntegrationID = @IntegrationID
+	and [Date] = @Date
+end
+else
+begin
+	insert into Table([Date], InstanceID, IntegrationID, PropertyFeedID, LastIntegrationDate, LastFeedReceived, RAGStatusID, SetUpDate)
+	values (@Date, @InstanceID, @IntegrationID, null, @IntDate, null, @StatusID, @SetUpDate)
+end";
 
                             int integrationID = _output.GetIntID(instance.Integrations.Name[x], integrations);
                             DateOnly integrationDate = _instanceData.LastIntegrationDate(instance, instance.Integrations.Name[x], instance.Integrations.UniqueFields[x]);
@@ -189,7 +246,22 @@ namespace RAG_Report_V3.Stages
 
                         _logger.Debug($"{instance.SubDomain} - Outputting Instance Information Model for: {instance.PropertyFeed.Name}");
 
-                        sqlQuery = @"";
+                        sqlQuery = @"if exists (
+	select InstanceID from Table with (nolock) where InstanceID = @InstanceID and [Date] = @Date and PropertyFeedID = @PropertyID
+)
+begin
+	update Table set LastFeedReceived = @FeedDate, RAGStatusID = @StatusID
+    output inserted.InstanceInfoID
+	where InstanceID = @InstanceID
+	and PropertyFeedID = @PropertyID
+	and [Date] = @Date
+end
+else
+begin
+	insert into Table([Date], InstanceID, IntegrationID, PropertyFeedID, LastIntegrationDate, LastFeedReceived, RAGStatusID, SetUpDate)
+    output inserted.InstanceInfoID
+	values (@Date, @InstanceID, null, @PropertyID, null, @FeedDate, @StatusID, @SetUpDate)
+end";
 
                         int propertyID = _output.GetPropID(instance.PropertyFeed.Name, instance.PropertyFeed.Type, propertyFeeds);
                         setUpdate = _output.GetPropSetUpDate(propertyID, instance);
@@ -214,7 +286,19 @@ namespace RAG_Report_V3.Stages
 
                         _logger.Debug($"{instance.SubDomain} - Outputting Instance Data Model for: {instance.PropertyFeed.Name}");
 
-                        sqlQuery = @"";
+                        sqlQuery = @"if exists (
+	select InstanceDataID from Table with (nolock) where InstanceInfoID = @InstanceInfoID and [Endpoint] = @Endpoint and [Date] = @Date
+)
+begin
+	update Table set Created = @Created, Modified = @Updated
+	where InstanceInfoID = @InstanceInfoID
+	and [Endpoint] = @Endpoint
+end
+else
+begin
+	insert into Table([Date], InstanceInfoID, [Endpoint], Created, Modified)
+	values (@Date, @InstanceInfoID, @Endpoint, @Created, @Updated)
+end";
 
                         if (infoId != null)
                         {
@@ -242,7 +326,13 @@ namespace RAG_Report_V3.Stages
                         {
                             _logger.Debug($"{instance.SubDomain} - Outputting Results Model for: {instance.PropertyFeed.Name}");
 
-                            sqlQuery = @"";
+                            sqlQuery = @"if not exists (
+	select PropertyIssuesID from Table with (nolock) where InstanceID = @InstanceID and PropertyFeedID = @PropertyID and [Date] = @Date
+)
+begin
+	insert into Table(InstanceID, PropertyFeedID, InstanceInfoID, [Date])
+	values (@InstanceID, @PropertyID, @InstanceInfoID, @Date)
+end";
 
                             command = new SqlCommand(sqlQuery, connection);
                             connection.Open();
@@ -266,7 +356,20 @@ namespace RAG_Report_V3.Stages
                     {
                         _logger.Debug($"{instance.SubDomain} - Outputting Instance Information Model.");
 
-                        sqlQuery = @"";
+                        sqlQuery = @"if exists (
+	select InstanceID from Table with (nolock) where InstanceID = @InstanceID and [Date] = @Date and PropertyFeedID = @PropertyID
+)
+begin
+	update Table set LastFeedReceived = @FeedDate, RAGStatusID = @StatusID
+	where InstanceID = @InstanceID
+	and PropertyFeedID = @PropertyID
+	and [Date] = @Date
+end
+else
+begin
+	insert into Table([Date], InstanceID, IntegrationID, PropertyFeedID, LastIntegrationDate, LastFeedReceived, RAGStatusID, SetUpDate)
+	values (@Date, @InstanceID, null, @PropertyID, null, @FeedDate, @StatusID, @SetUpDate)
+end";
 
                         int propertyID = _output.GetPropID(instance.PropertyFeed.Name, instance.PropertyFeed.Type, propertyFeeds);
                         DateOnly feedDate = _instanceData.LastFeedDate(instance);
@@ -303,6 +406,91 @@ namespace RAG_Report_V3.Stages
             _logger.Info($"{instance.SubDomain} - Data Outputted");
 
             return "Success";
+        }
+        
+        // Creates a new integration record in the Integration table.
+        public void CreateIntRecord(string name, Output_Integrations_Model integrations)
+        {
+            _logger.Warn($"System - {name} not found, adding to Integration table.");
+
+            try
+            {
+                SqlConnection connection;
+                SqlCommand command;
+                SqlDataReader dataReader;
+
+                string sqlQuery = @"insert into Table
+output inserted.IntegrationID, inserted.Name, inserted.Type
+values (@Integration, '-=Unknown=-', null, null)";
+
+                connection = new SqlConnection(App_Settings_Model.OutputConnectionString);
+                connection.Open();
+                command = new SqlCommand(sqlQuery, connection);
+                command.Parameters.Add(new SqlParameter("@Integration", name));
+                dataReader = command.ExecuteReader();
+
+                while (dataReader.Read())
+                {
+                    integrations.IntegrationId.Add(dataReader.GetInt32(0));
+                    integrations.Name.Add(dataReader.GetString(1));
+                    integrations.Type.Add(dataReader.GetString(2));
+                    integrations.UniqueField.Add("");
+                    integrations.Source.Add("");
+                }
+
+                dataReader.Close();
+                connection.Close();
+            }
+
+            catch (Exception ex)
+            {
+                ThreadContext.Properties["Summary"] = "An error occured when running CreateIntRecord in the Output_Data class.";
+                _sqlLogger.Error($"{name} - {ex}");
+            }
+
+            _logger.Info($"System - {name} added to Integration table.");
+        }
+
+        // Creates a new property feed record in the PropertyFeed table.
+        public void CreatePFRecord(string name, string type, Output_Property_Feed_Model propertyFeeds)
+        {
+            _logger.Warn($"System - {name} not found, adding to PropertyFeed table.");
+
+            try
+            {
+                SqlConnection connection;
+                SqlCommand command;
+                SqlDataReader dataReader;
+
+                string sqlQuery = @"insert into Table
+output inserted.PropertyFeedID, inserted.Name, inserted.Type
+values (@PropertyFeed, @type)";
+
+                connection = new SqlConnection(App_Settings_Model.OutputConnectionString);
+                connection.Open();
+                command = new SqlCommand(sqlQuery, connection);
+                command.Parameters.Add(new SqlParameter("@PropertyFeed", name));
+                command.Parameters.Add(new SqlParameter("@type", type));
+                dataReader = command.ExecuteReader();
+
+                while (dataReader.Read())
+                {
+                    propertyFeeds.PropertyId.Add(dataReader.GetInt32(0));
+                    propertyFeeds.Name.Add(dataReader.GetString(1));
+                    propertyFeeds.Type.Add(dataReader.GetString(2));
+                }
+
+                dataReader.Close();
+                connection.Close();
+            }
+
+            catch (Exception ex)
+            {
+                ThreadContext.Properties["Summary"] = "An error occured when running CreatePFRecord in the Output_Data class.";
+                _sqlLogger.Error($"{name} - {ex}");
+            }
+
+            _logger.Info($"System - {name} added to PropertyFeed table.");
         }
     }
 }

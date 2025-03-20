@@ -1,0 +1,27 @@
+{
+    "ticket": {
+      "comment": {
+        "body": "A new feed has been added to the Table or TableTwo table on the X database.\n\nPlease ensure the new record's information is correct.\n\nFor the Table table, please correctly populate the following:\n\nType\nUniqueFields\nSource\n\nThe new feed is called {0}.",
+        "public": false
+      },
+      "priority": "normal",
+      "subject": "RAG Report V3 New Feed Addition",
+      "custom_fields":[
+          {
+              "id":,
+              "value":"support_-_general_query"
+          },
+          {
+              "id":,
+              "value":""
+          },
+          {
+              "id": ,
+              "value": "service_request"
+          }
+      ],
+      "ticket_form_id":,
+      "group_id":,
+      "requester_id": 
+      }
+  }
