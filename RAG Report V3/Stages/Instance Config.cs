@@ -24,7 +24,7 @@ namespace RAG_Report_V3.Stages
                 SqlCommand command;
                 SqlDataReader dataReader;
 
-                string sqlQuery = "";
+                string sqlQuery = "select IntegrationID, Name, Type, UniqueFields, Source from Table with (nolock)";
 
                 connection = new SqlConnection(App_Settings_Model.OutputConnectionString);
                 connection.Open();
@@ -98,7 +98,7 @@ namespace RAG_Report_V3.Stages
                 SqlCommand command;
                 SqlDataReader dataReader;
 
-                string sqlQuery = "";
+                string sqlQuery = "select PropertyFeedID, Name, Type from Table with (nolock)";
 
                 connection = new SqlConnection(App_Settings_Model.OutputConnectionString);
                 connection.Open();
@@ -131,6 +131,82 @@ namespace RAG_Report_V3.Stages
             }
         }
 
+        // Gets the existing RAG numbers from the InstanceInformation table.
+        public RAGNumbers GetCurrentNumbers(int instanceId)
+        {
+            RAGNumbers rag = new();
+
+            _logger.Info("System - Getting Existing RAG Numbers");
+
+            try
+            {
+                SqlConnection connection;
+                SqlCommand command;
+                SqlDataReader dataReader;
+
+                string sqlQuery = @"select RAGStatusID, count(*) from Table with (nolock)
+where Date = @Date
+and IntegrationId is not null
+and InstanceID != @InstanceId
+group by RAGStatusID
+order by 1 asc";
+
+                connection = new SqlConnection(App_Settings_Model.OutputConnectionString);
+                connection.Open();
+                command = new SqlCommand(sqlQuery, connection);
+                command.Parameters.Add(new SqlParameter("@Date", DateTime.Now.ToString("yyyy-MM-dd")));
+                command.Parameters.Add(new SqlParameter("@InstanceId", instanceId));
+                dataReader = command.ExecuteReader();
+
+                while (dataReader.Read())
+                {
+                    if (dataReader.GetInt32(0) == 1)
+                    {
+                        rag.DarkRed = dataReader.GetInt32(1);
+                    }
+
+                    if (dataReader.GetInt32(0) == 2)
+                    {
+                        rag.Red = dataReader.GetInt32(1);
+                    }
+
+                    if (dataReader.GetInt32(0) == 3)
+                    {
+                        rag.Yellow = dataReader.GetInt32(1);
+                    }
+
+                    if (dataReader.GetInt32(0) == 4)
+                    {
+                        rag.Green = dataReader.GetInt32(1);
+                    }
+
+                    if (dataReader.GetInt32(0) == 5)
+                    {
+                        rag.DarkViolet = dataReader.GetInt32(1);
+                    }
+                }
+
+                dataReader.Close();
+                connection.Close();
+
+                _logger.Debug($"System - Dark Red: {rag.DarkRed}");
+                _logger.Debug($"System - Red: {rag.Red}");
+                _logger.Debug($"System - Yellow: {rag.Yellow}");
+                _logger.Debug($"System - Green: {rag.Green}");
+                _logger.Debug($"System - Dark Violet: {rag.DarkViolet}");
+
+                _logger.Info("System - Existing RAG Numbers obtained.");
+                return rag;
+            }
+
+            catch (Exception ex)
+            {
+                ThreadContext.Properties["Summary"] = "An error occured when running GetCurrentNumbers in the Instance_Config class.";
+                _sqlLogger.Error(ex);
+                return new();
+            }
+        }
+
         // Gets a list of all instance details.
         public List<Instance_Model> GetInstanceDetails(int? id)
         {
@@ -144,14 +220,25 @@ namespace RAG_Report_V3.Stages
                 SqlCommand command;
                 SqlDataReader dataReader;
 
-                string sqlQuery = @"";
+                string sqlQuery = @"select Table.InstanceID, Table.status, host.Value, Serv.Value, Db.Value from Table with (nolock)
+join TableTwo Host on Table.InstanceID = Host.InstanceID
+join TableTwo Serv on Table.InstanceID = Serv.InstanceID
+join TableTwo Db on Table.InstanceID = Db.InstanceID
+where Host.Name = 'ExternalURL'
+and Serv.Name = 'DatabaseServer'
+and Db.Name = 'Database'";
 
                 if (id.HasValue)
                 {
-                    sqlQuery += "";
+                    sqlQuery += "\nand Table.InstanceID = @InstanceID";
                 }
 
-                sqlQuery += "";
+                if (!string.IsNullOrWhiteSpace(App_Settings_Model.ExcludeInstances) && !id.HasValue)
+                {
+                    sqlQuery += $"\nand Table.InstanceID not in (\n{App_Settings_Model.ExcludeInstances}\n)";
+                }
+
+                sqlQuery += "\norder by 1 asc";
 
                 connection = new SqlConnection(App_Settings_Model.InputConnectionString);
                 connection.Open();
@@ -202,6 +289,8 @@ namespace RAG_Report_V3.Stages
         // Gets the information about the instances.
         public string GetInstanceConfig(List<Instance_Model> instances, Output_Integrations_Model integrations)
         {
+            string status = "Success";
+
             Parallel.ForEach(instances, new ParallelOptions { MaxDegreeOfParallelism = App_Settings_Model.MaxThreads }, (instance, ParallelLoopState) =>
             {
                  _logger.Info($"{instance.SubDomain} - Getting all instance information for: {instance.InstanceId}");
@@ -210,6 +299,7 @@ namespace RAG_Report_V3.Stages
                  {
                      Console.WriteLine($"{instance.SubDomain} - Obtaining instance information for {instance.InstanceId} has failed.");
                      _logger.Error($"{instance.SubDomain} - Obtaining instance information for {instance.InstanceId} has failed.");
+                     status = "Failed";
                      ParallelLoopState.Break();
                  }
 
@@ -217,6 +307,7 @@ namespace RAG_Report_V3.Stages
                  {
                      Console.WriteLine($"{instance.SubDomain} - Obtaining instance information for {instance.InstanceId} has failed.");
                      _logger.Error($"{instance.SubDomain} - Obtaining instance information for {instance.InstanceId} has failed.");
+                     status = "Failed";
                      ParallelLoopState.Break();
                  }
 
@@ -224,6 +315,7 @@ namespace RAG_Report_V3.Stages
                  {
                      Console.WriteLine($"{instance.SubDomain} - Obtaining instance information for {instance.InstanceId} has failed.");
                      _logger.Error($"{instance.SubDomain} - Obtaining instance information for {instance.InstanceId} has failed.");
+                     status = "Failed";
                      ParallelLoopState.Break();
                  }
 
@@ -231,17 +323,18 @@ namespace RAG_Report_V3.Stages
                  {
                      Console.WriteLine($"{instance.SubDomain} - Obtaining instance information for {instance.InstanceId} has failed.");
                      _logger.Error($"{instance.SubDomain} - Obtaining instance information for {instance.InstanceId} has failed.");
+                     status = "Failed";
                      ParallelLoopState.Break();
                  }
 
                  _logger.Info($"{instance.SubDomain} - Obtained all instance information for: {instance.InstanceId}");
             });
 
-            return "Success";
+            return status;
         }
 
         // Gets the number of active triggers for the given instance.
-        private static string GetActiveTriggers(Instance_Model instance)
+        private string GetActiveTriggers(Instance_Model instance)
         {
             try
             {
@@ -249,9 +342,19 @@ namespace RAG_Report_V3.Stages
                 SqlCommand command;
                 SqlDataReader dataReader;
 
-                string sqlQuery = @"";
+                string sqlQuery = @"if exists (
+select * from INFORMATION_SCHEMA.TABLES with (nolock) where TABLE_SCHEMA = 'dbo' and  TABLE_NAME = 'Table'
+)
+begin
+    select count(*) from [Table] with (nolock)
+	where Status = 0
+end
+else
+begin
+	select 0
+end";
 
-                connection = new SqlConnection($"Data Source={instance.Server};Initial Catalog={instance.Database};User Id=;Password=");
+                connection = new SqlConnection($"Data Source={instance.Server};Initial Catalog={instance.Database};User Id=ReportRunner;Password=R3d Bull");
                 connection.Open();
                 command = new SqlCommand(sqlQuery, connection);
                 dataReader = command.ExecuteReader();
@@ -288,7 +391,24 @@ namespace RAG_Report_V3.Stages
 
                 instance.Integrations = new Integration_Model();
                 string excludedIntegrations = File.ReadAllText(App_Settings_Model.ExcludeIntegrations);
-                string sqlQuery = @$"";
+                string sqlQuery = @$"with CountCTE as (
+	select count(*) as IntegrationCount from Table with (nolock)
+	join TableTwo on Table.IntegrationDefinitionStoreID = TableTwo.IntegrationDefinitionID
+	where InstanceID = @InstanceID
+	and TableTwo.Name not in (
+{excludedIntegrations}
+	)
+)
+
+select cast(IntegrationCount as varchar), null from CountCTE with (nolock)
+union all
+select TableTwo.Name, LastModifiedDateTime from Table with (nolock)
+join TableTwo on Table.IntegrationDefinitionStoreID = TableTwo.IntegrationDefinitionID
+where InstanceID = @InstanceID
+and TableTwo.Name not in (
+{excludedIntegrations}
+)
+and (select IntegrationCount from CountCTE with (nolock)) > 0";
                 bool firstRow = true;
 
                 connection = new SqlConnection(App_Settings_Model.InputConnectionString);
@@ -412,9 +532,10 @@ namespace RAG_Report_V3.Stages
                 SqlCommand command;
                 SqlDataReader dataReader;
 
-                string sqlQuery = @"";
+                string sqlQuery = @"select distinct IntegrationType from Table with (nolock)
+where IntegrationType is not null";
 
-                connection = new SqlConnection($"Data Source={instance.Server};Initial Catalog={instance.Database};User Id=;Password=");
+                connection = new SqlConnection($"Data Source={instance.Server};Initial Catalog={instance.Database};User Id=ReportRunner;Password=R3d Bull");
                 connection.Open();
                 command = new SqlCommand(sqlQuery, connection);
                 dataReader = command.ExecuteReader();
@@ -477,7 +598,20 @@ namespace RAG_Report_V3.Stages
                 SqlDataReader dataReader;
 
                 instance.PropertyFeed = new Property_Feed_Model();
-                string sqlQuery = @"";
+                string sqlQuery = @"with CountCTE as (
+	select count(*) as ProductCount from Table with (nolock)
+	join TableTwo on Table.ProductType = TableTwo.ProductTypeId
+	join TableThree on Table.ProductPartner = TableThree.ProductPartnerId
+	where InstanceID = @InstanceID
+)
+
+select cast(ProductCount as varchar), null, null from CountCTE with (nolock)
+union all
+select TableThree.Name, TableTwo.Description, LastModifiedDateTime from Table with (nolock)
+join TableTwo on Table.ProductType = TableTwo.ProductTypeId
+join TableThree on Table.ProductPartner = TableThree.ProductPartnerId
+where InstanceID = @InstanceID
+and (select ProductCount from CountCTE with (nolock)) > 0";
                 bool firstRow = true;
 
                 connection = new SqlConnection(App_Settings_Model.InputConnectionString);
@@ -542,7 +676,12 @@ namespace RAG_Report_V3.Stages
                 SqlCommand command;
                 SqlDataReader dataReader;
 
-                string sqlQuery = @"";
+                string sqlQuery = @"select count(*) from Table with (nolock)
+where InstanceID = @InstanceID
+union all
+select count(*) from Table with (nolock)
+where InstanceID = @InstanceID
+and comment like '%*Partner: %'";
                 int exclusions = 0;
                 int comments = 0;
                 bool firstRow = true;
@@ -578,7 +717,9 @@ namespace RAG_Report_V3.Stages
                     {
                         foreach (string name in instance.Integrations.Name)
                         {
-                            sqlQuery = @"";
+                            sqlQuery = @"select top 1 Type, Name, ExcludeTillDate, ExclusionReason, Comment from Table with (nolock)
+where InstanceID = @InstanceID
+and Name = @Name";
 
                             string integration = name;
 
@@ -588,11 +729,11 @@ namespace RAG_Report_V3.Stages
 
                                 if (comments > 0)
                                 {
-                                    sqlQuery += "";
+                                    sqlQuery += "\nand Comment like @Source";
                                 }
                             }
 
-                            sqlQuery += "";
+                            sqlQuery += "\norder by DateAdded desc";
 
                             connection = new SqlConnection(App_Settings_Model.InputConnectionString);
                             connection.Open();
@@ -600,7 +741,7 @@ namespace RAG_Report_V3.Stages
                             command.Parameters.Add(new SqlParameter("@InstanceID", instance.InstanceId));
                             command.Parameters.Add(new SqlParameter("@Name", integration));
 
-                            if (sqlQuery.Contains(""))
+                            if (sqlQuery.Contains("and Comment like @Source"))
                             {
                                 command.Parameters.Add(new SqlParameter("@Source", $"%*Partner: {_instanceConfiguration.GetPSSource(name.Remove(0, name.IndexOf("-") + 2))}*%"));
                             }
@@ -650,7 +791,10 @@ namespace RAG_Report_V3.Stages
 
                     if (instance.PropertyFeed != null)
                     {
-                        sqlQuery = @"";
+                        sqlQuery = @"select top 1 Type, Name, ExcludeTillDate, ExclusionReason, Comment from Table with (nolock)
+where InstanceID = @InstanceID
+and Name = @Name
+order by DateAdded desc";
 
                         connection = new SqlConnection(App_Settings_Model.InputConnectionString);
                         connection.Open();
@@ -690,6 +834,77 @@ namespace RAG_Report_V3.Stages
                 ThreadContext.Properties["Summary"] = "An error occured when running GetExclusion in the Instance_Config class.";
                 _sqlLogger.Error($"{instance.InstanceId} - {ex}");
                 return "Failed";
+            }
+        }
+
+        // Gets the outputted data for the given option.
+        public List<TicketDataModel> GetTicketData(string option)
+        {
+            TicketConverter _ticketConverter = new();
+
+            List<TicketDataModel> ticketData = new();
+
+            _logger.Info("System - Obtaining Data for Tickets");
+
+            try
+            {
+                SqlConnection connection;
+                SqlCommand command;
+                SqlDataReader dataReader;
+
+                string sqlQuery = @"select [URL], case when Source is not null then concat([Name], ' - ', Source) else [Name] end, LastIntegrationDate, RAGStatusID from Table
+join TableTwo on Table.InstanceID = TableTwo.InstanceID
+join TableThree on TableTwo.IntegrationID = TableThree.IntegrationID
+where [Date] = @Date";
+
+                if (TicketSettingsModel.StatusFilter != null)
+                {
+                    sqlQuery += "\nand RAGStatusID in (";
+
+                    foreach (string status in TicketSettingsModel.StatusFilter)
+                    {
+                        sqlQuery += $"\n{_ticketConverter.GetRAGStatusId(status)},";
+                    }
+
+                    sqlQuery = sqlQuery.Remove(sqlQuery.LastIndexOf(','));
+                    sqlQuery += "\n)\n";
+                }
+
+                sqlQuery += "order by RAGStatusID, LastIntegrationDate asc";
+
+                connection = new SqlConnection(App_Settings_Model.OutputConnectionString);
+                connection.Open();
+                command = new SqlCommand(sqlQuery, connection);
+                command.Parameters.Add(new SqlParameter("@Date", DateTime.Now.ToString("yyyy-MM-dd")));
+                dataReader = command.ExecuteReader();
+
+                while (dataReader.Read())
+                {
+                    TicketDataModel data = new()
+                    {
+                        Domain = dataReader.GetString(0),
+                        DefinitionName = dataReader.GetString(1),
+                        LastFeedDate = DateOnly.Parse(dataReader.GetDateTime(2).ToString("yyyy-MM-dd")),
+                        RAGStatus = _ticketConverter.GetRAGStatus(dataReader.GetInt32(3))
+                    };
+
+                    ticketData.Add(data);
+                }
+
+                dataReader.Close();
+                connection.Close();
+
+                _logger.Debug($"System - Potential Tickets: {ticketData.Count}");
+
+                _logger.Info("System - Obtained Data for Tickets");
+                return ticketData;
+            }
+
+            catch (Exception ex)
+            {
+                ThreadContext.Properties["Summary"] = "An error occured when running GetTicketData in the Instance_Config class.";
+                _sqlLogger.Error(ex);
+                return new();
             }
         }
     }

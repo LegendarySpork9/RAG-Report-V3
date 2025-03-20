@@ -19,7 +19,7 @@ namespace RAG_Report_V3.Stages
                 SqlConnection connection;
                 SqlCommand command;
 
-                string sqlQuery = "";
+                string sqlQuery = "update Table set Status = 'Deleted'";
                 int rowsAffected;
 
                 connection = new SqlConnection(App_Settings_Model.OutputConnectionString);

@@ -47,7 +47,7 @@ namespace RAG_Report_V3.Stages
                 if (instance.MultiplePSIntegrations && instance.Integrations.Name[index].Contains("Property Schema - ") &&
                     instance.Integrations.Name[index] != "Property Schema - Gazeal")
                 {
-                    sqlQuery = sqlQuery.Replace("^", $"and {queryAddon.Item1} is not null and field = ''{instance.Integrations.Name[index].Remove(0, instance.Integrations.Name[index].IndexOf("-") + 2).Replace(" ", "")}''");
+                    sqlQuery = sqlQuery.Replace("^", $"and {queryAddon.Item1} is not null and IntegrationType = ''{instance.Integrations.Name[index].Remove(0, instance.Integrations.Name[index].IndexOf("-") + 2).Replace(" ", "")}''");
                 }
 
                 if (!string.IsNullOrWhiteSpace(queryAddon.Item1))
@@ -277,13 +277,13 @@ namespace RAG_Report_V3.Stages
 
                 Instance_Data_Formatters _instanceDataformatters = new();
 
-                string sqlQuery = "";
+                string sqlQuery = "select max(cast(LastModified as date)) as IntegrationDate from Table with (nolock) where Email not like '%@briefyourmarket.%' and Email not like '%@nurtur.%' ^";
                 var queryAddon = _instanceDataformatters.FormatUniqueFields(uniqueFields);
 
                 if (instance.MultiplePSIntegrations && name.Contains("Property Schema - ") &&
                     name != "Property Schema - Gazeal")
                 {
-                    sqlQuery = sqlQuery.Replace("^", $"and {queryAddon.Item1} is not null and field = '{_instanceConfiguration.GetPSSource(name.Remove(0, name.IndexOf("-") + 2))}'");
+                    sqlQuery = sqlQuery.Replace("^", $"and {queryAddon.Item1} is not null and IntegrationType = '{_instanceConfiguration.GetPSSource(name.Remove(0, name.IndexOf("-") + 2))}'");
                 }
 
                 if (!string.IsNullOrWhiteSpace(queryAddon.Item1))
@@ -296,7 +296,7 @@ namespace RAG_Report_V3.Stages
                     sqlQuery = sqlQuery.Replace(" ^", "");
                 }
 
-                connection = new SqlConnection($"Data Source={instance.Server};Initial Catalog={instance.Database};User Id=;Password=");
+                connection = new SqlConnection($"Data Source={instance.Server};Initial Catalog={instance.Database};User Id=ReportRunner;Password=R3d Bull");
                 connection.Open();
                 command = new SqlCommand(sqlQuery, connection);
                 dataReader = command.ExecuteReader();
@@ -333,16 +333,19 @@ namespace RAG_Report_V3.Stages
                 SqlCommand command;
                 SqlDataReader dataReader;
 
-                string sqlQuery = "";
+                string sqlQuery = "select max(cast(LastAppearedInFeed as date)) as ReceivedDate from Table with (nolock)";
 
-                connection = new SqlConnection($"Data Source={instance.Server};Initial Catalog={instance.Database};User Id=;Password=");
+                connection = new SqlConnection($"Data Source={instance.Server};Initial Catalog={instance.Database};User Id=ReportRunner;Password=R3d Bull");
                 connection.Open();
                 command = new SqlCommand(sqlQuery, connection);
                 dataReader = command.ExecuteReader();
 
                 while (dataReader.Read())
                 {
-                    feedDate = DateOnly.Parse(dataReader.GetDateTime(0).ToString("yyyy-MM-dd"));
+                    if (!dataReader.IsDBNull(0))
+                    {
+                        feedDate = DateOnly.Parse(dataReader.GetDateTime(0).ToString("yyyy-MM-dd"));
+                    }
                 }
 
                 dataReader.Close();

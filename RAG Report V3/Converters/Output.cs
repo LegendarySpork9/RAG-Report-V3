@@ -1,5 +1,6 @@
 ﻿using log4net;
 using RAG_Report_V3.Models;
+using RAG_Report_V3.Stages;
 using System.Data.SqlClient;
 
 namespace RAG_Report_V3.Converters
@@ -32,6 +33,15 @@ namespace RAG_Report_V3.Converters
         // Converts the Property Feed Name to the ID.
         public int GetPropID(string name, string type, Output_Property_Feed_Model propertyFeeds)
         {
+            Output_Data _outputData = new();
+            TicketHandler _ticketHandler = new();
+
+            if (!propertyFeeds.Name.Contains(name))
+            {
+                _outputData.CreatePFRecord(name, type, propertyFeeds);
+                _ticketHandler.RaiseNewFeedTicket(name);
+            }
+
             int propID = 0;
 
             for (int index = 0; index < propertyFeeds.Name.Count; index++)
@@ -59,7 +69,9 @@ namespace RAG_Report_V3.Converters
                 SqlCommand command;
                 SqlDataReader dataReader;
 
-                string sqlQuery = @"";
+                string sqlQuery = @"select top 1 SetUpDate from Table with (nolock)
+where InstanceID = @ID
+and IntegrationID = @IntID";
 
                 connection = new SqlConnection(App_Settings_Model.OutputConnectionString);
                 connection.Open();
@@ -104,7 +116,9 @@ namespace RAG_Report_V3.Converters
                 SqlCommand command;
                 SqlDataReader dataReader;
 
-                string sqlQuery = @"";
+                string sqlQuery = @"select top 1 SetUpDate from Table with (nolock)
+where InstanceID = @ID
+and PropertyFeedID = @PropID";
 
                 connection = new SqlConnection(App_Settings_Model.OutputConnectionString);
                 connection.Open();

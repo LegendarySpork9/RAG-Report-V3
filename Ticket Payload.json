@@ -1,0 +1,31 @@
+{
+    "ticket": {
+      "comment": {
+        "body": "Integration Partner: {0}\nLast Contact Created: {1}\nRAG Status: {2}",
+        "public": false
+      },
+      "priority": "normal",
+      "subject": "Integration Not Running - {3}",
+      "custom_fields":[
+          {
+              "id":,
+              "value":"integration_not_running"
+          },
+          {
+              "id":,
+              "value":"{3}"
+          },
+          {
+              "id": ,
+              "value": "incident"
+          },
+          {
+              "id": ,
+              "value": "{4}"
+          }
+      ],
+      "ticket_form_id":,
+      "group_id":,
+      "requester_id": 
+      }
+  }
