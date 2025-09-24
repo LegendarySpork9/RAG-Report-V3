@@ -30,13 +30,13 @@ namespace RAG_Report_V3.Stages
 	select InstanceID from Table with (nolock) where InstanceID = @InstanceID
 )
 begin
-	update Table set [URL] = @URL, [Status] = @Status, ActiveTriggers = @AT
+	update Table set [URL] = @URL, [Status] = @Status, ActiveContactTriggers = @ACT, ActivePropertyTriggers = @APT
 	where InstanceID = @InstanceID
 end
 else
 begin
-	insert into Table (InstanceID, URL, Status, ActiveTriggers)
-	values (@InstanceID, @URL, @Status, @AT)
+	insert into Table (InstanceID, URL, Status, ActiveContactTriggers, ActivePropertyTriggers)
+	values (@InstanceID, @URL, @Status, @ACT, @APT)
 end";
 
                 connection = new SqlConnection(App_Settings_Model.OutputConnectionString);
@@ -44,7 +44,8 @@ end";
                 command = new SqlCommand(sqlQuery, connection);
                 command.Parameters.Add(new SqlParameter("@URL", instance.URL));
                 command.Parameters.Add(new SqlParameter("@Status", instance.Status));
-                command.Parameters.Add(new SqlParameter("@AT", instance.ActiveTriggers));
+                command.Parameters.Add(new SqlParameter("@ACT", instance.ActiveContactTriggers));
+                command.Parameters.Add(new SqlParameter("@APT", instance.ActivePropertyTriggers));
                 command.Parameters.Add(new SqlParameter("@InstanceID", instance.InstanceId));
                 command.CommandTimeout = 0;
                 int rowsAffected = command.ExecuteNonQuery();

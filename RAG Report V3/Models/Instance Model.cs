@@ -7,7 +7,8 @@
         public string? URL { get; set; }
         public string? SubDomain { get; set; }
         public string? Status { get; set; }
-        public int ActiveTriggers { get; set; }
+        public int ActiveContactTriggers { get; set; }
+        public int ActivePropertyTriggers { get; set; }
         public string? Server { get; set; }
         public string? Database { get; set; }
         public bool MultiplePSIntegrations { get; set; } = false;

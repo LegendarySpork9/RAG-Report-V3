@@ -347,7 +347,8 @@ select * from INFORMATION_SCHEMA.TABLES with (nolock) where TABLE_SCHEMA = 'dbo'
 )
 begin
     select count(*) from [Table] with (nolock)
-	where Status = 0
+	where @condition
+    and Status = 0
 end
 else
 begin
@@ -356,14 +357,26 @@ end";
 
                 connection = new SqlConnection($"Data Source={instance.Server};Initial Catalog={instance.Database};User Id=ReportRunner;Password=R3d Bull");
                 connection.Open();
-                command = new SqlCommand(sqlQuery, connection);
+                command = new SqlCommand(sqlQuery.Replace("@condition", "TriggerTypeTypeName not like '%ProductPropertyTriggerType%'"), connection);
                 dataReader = command.ExecuteReader();
 
                 while (dataReader.Read())
                 {
-                    instance.ActiveTriggers = dataReader.GetInt32(0);
+                    instance.ActiveContactTriggers = dataReader.GetInt32(0);
 
-                    _logger.Debug($"{instance.SubDomain} - Active Triggers: {instance.ActiveTriggers}");
+                    _logger.Debug($"{instance.SubDomain} - Active Contact Triggers: {instance.ActiveContactTriggers}");
+                }
+
+                dataReader.Close();
+
+                command = new SqlCommand(sqlQuery.Replace("@condition", "TriggerTypeTypeName like '%ProductPropertyTriggerType%'"), connection);
+                dataReader = command.ExecuteReader();
+
+                while (dataReader.Read())
+                {
+                    instance.ActivePropertyTriggers = dataReader.GetInt32(0);
+
+                    _logger.Debug($"{instance.SubDomain} - Active Property Triggers: {instance.ActivePropertyTriggers}");
                 }
 
                 dataReader.Close();
