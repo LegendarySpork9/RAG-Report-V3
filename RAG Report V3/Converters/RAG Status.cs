@@ -46,7 +46,7 @@ namespace RAG_Report_V3.Converters
                 return;
             }
 
-            if ((result.ContactIssue && instance.ActiveTriggers > 0) || (result.PropertyIssue && instance.ActiveTriggers > 0))
+            if ((result.ContactIssue && instance.ActiveContactTriggers > 0) || (result.PropertyIssue && instance.ActivePropertyTriggers > 0))
             {
                 instanceInformation.RAGStatusID = 1;
                 _logger.Debug($"{instance.SubDomain} - Rag Status: Dark Red");
